@@ -4,6 +4,7 @@ on:
     branches:
       - master
       - develop
+      - snomed-release-1.0.0
     paths-ignore:
       - "**.md"
   workflow_dispatch:
@@ -43,4 +44,4 @@ jobs:
           platforms: linux/amd64,linux/arm64
           file: package/docker/cdss/Dockerfile
           push: true
-          tags: bahmni/cdss-reference:snomed-${{ github.run_number }},bahmni/cdss-reference:snomed-latest
+          tags: bahmni/cdss-reference:snomed-1.0.0,bahmni/cdss-reference:snomed-latest
