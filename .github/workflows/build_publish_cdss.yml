@@ -42,4 +42,4 @@ jobs:
           platforms: linux/amd64,linux/arm64
           file: package/docker/cdss/Dockerfile
           push: true
-          tags: bahmni/cdss-reference:snomed-${{ github.run_number }},bahmni/cdss-reference:snomed-latest
+          tags: bahmni/cdss-reference:snomed-${{ github.run_number }},bahmni/cdss-reference:latest
