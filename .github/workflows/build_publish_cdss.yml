@@ -14,6 +14,13 @@ jobs:
     name: Build & Publish Docker Image
     runs-on: ubuntu-latest
     steps:
+      - name: Set env.ARTIFACT_VERSION
+        uses: actions/checkout@v2
+        run: |
+          wget -q https://raw.githubusercontent.com/Bahmni/bahmni-infra-utils/main/setArtifactVersion.sh && chmod +x setArtifactVersion.sh
+          ./setArtifactVersion.sh
+          rm setArtifactVersion.sh
+
       - name: Checkout repository
         uses: actions/checkout@v2
 
@@ -44,4 +51,4 @@ jobs:
           platforms: linux/amd64,linux/arm64
           file: package/docker/cdss/Dockerfile
           push: true
-          tags: bahmni/cdss-reference:snomed-${{ github.run_number }},bahmni/cdss-reference:latest
+          tags: bahmni/cdss-reference:snomed-${{ github.run_number }},bahmni/cdss-reference:${{ env.ARTIFACT_VERSION }},bahmni/cdss-reference:latest
