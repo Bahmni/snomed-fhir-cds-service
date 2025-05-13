@@ -12,7 +12,7 @@ import java.util.stream.Stream;
 public class SnomedValueSetUtil {
 
 	// Map of characters that will not be URL encoded to help ECL readability
-	private static final Map<String, String> eclDecodeForReadabililtyMap = Stream.of("<", ">", "(", ")", "|", "!")
+	private static final Map<String, String> eclDecodeForReadabililtyMap = Stream.of("<", ">", "(", ")", "|", "!", ":", "=", ",")
 			.collect(Collectors.toMap(s -> URLEncoder.encode(s, StandardCharsets.UTF_8), Function.identity()));
 
 	/**
