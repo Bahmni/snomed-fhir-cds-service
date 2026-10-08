@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -70,10 +71,10 @@ public abstract class CDSTrigger {
 		}).collect(Collectors.toList());
 	}
 
-	public String toHumanReadable(Collection<Coding> codings) {
-		Collection<String> codingsDisplay = codings.stream().map(Coding::getDisplay).collect(Collectors.toSet());
+	public String toHumanReadable(Collection<Coding> codings, String fallback) {
+		Collection<String> codingsDisplay = codings.stream().map(Coding::getDisplay).filter(Objects::nonNull).collect(Collectors.toSet());
 		if (codingsDisplay.isEmpty()) {
-			return "";
+			return fallback != null ? format("\"%s\"", fallback) : "";
 		} else if (codingsDisplay.size() == 1) {
 			return format("\"%s\"", codingsDisplay.iterator().next());
 		} else {
