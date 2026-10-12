@@ -11,8 +11,10 @@ import org.snomed.cdsservice.model.CDSIndicator;
 import org.snomed.cdsservice.model.CDSReference;
 import org.snomed.cdsservice.model.CDSSource;
 import org.snomed.cdsservice.model.CDSTrigger;
+import org.snomed.cdsservice.model.MedicationAllergyCDSTrigger;
 import org.snomed.cdsservice.model.MedicationConditionCDSTrigger;
 import org.snomed.cdsservice.rest.pojo.CDSRequest;
+import org.snomed.cdsservice.service.medication.MedicationAllergyRuleLoaderService;
 import org.snomed.cdsservice.service.medication.MedicationCombinationRuleLoaderService;
 import org.snomed.cdsservice.service.medication.MedicationConditionRuleLoaderService;
 import org.snomed.cdsservice.service.medication.MedicationOrderSelectCDSService;
@@ -58,6 +60,8 @@ class MedicationOrderSelectCDSServiceTest {
     private MedicationConditionRuleLoaderService ruleLoaderService;
     @MockBean
     private MedicationCombinationRuleLoaderService medicationRuleLoaderService;
+    @MockBean
+    private MedicationAllergyRuleLoaderService medicationAllergyRuleLoaderService;
     @Autowired
     private MedicationOrderSelectCDSService service;
     @MockBean
@@ -124,6 +128,173 @@ class MedicationOrderSelectCDSServiceTest {
 		assertEquals(CONTRAINDICATION_ALERT_TYPE, cdsCard.getAlertType());
 	}
 
+	@Test
+	public void shouldReturnAlert_WhenPrescribedDrugIsContraindicatedForPatientAllergy() throws IOException {
+		CDSTrigger allergyTrigger = new MedicationAllergyCDSTrigger(
+				"Penicillin-containing product",
+				Collections.singleton(new Coding("http://snomed.info/sct", "890458001", null)),
+				"Penicillin-containing product",
+				Collections.singleton(new Coding("http://snomed.info/sct", "890458001", null)),
+				new CDSCard(
+						"a99169a9-1092-4597-920a-03ccd7a8716c",
+						"Contraindication of medication for patient allergy: {{ActualMedication}} with allergen {{ActualAllergen}}.",
+						"The use of {{RuleMedication}} is contraindicated when the patient has an allergy to {{RuleAllergen}}. It is recommended to avoid prescribing any penicillin containing drug for this patient.",
+						CDSIndicator.critical,
+						new CDSSource("CPIC"),
+						null,
+						null,
+						CONTRAINDICATION_ALERT_TYPE));
+		service.setMedicationAllergyTriggers(List.of(allergyTrigger));
+
+		CDSRequest cdsRequest = new CDSRequest();
+		cdsRequest.setPrefetchStrings(Map.of(
+				"patient", StreamUtils.copyToString(getClass().getResourceAsStream("/medication-order-select/PatientResource.json"), StandardCharsets.UTF_8),
+				"conditions", "{\"resourceType\":\"Bundle\"}",
+				"draftMedicationRequests", StreamUtils.copyToString(getClass().getResourceAsStream("/medication-order-select/MedicationRequestBundleWithPenicillin.json"), StandardCharsets.UTF_8),
+				"allergies", StreamUtils.copyToString(getClass().getResourceAsStream("/medication-order-select/AllergyIntoleranceBundle.json"), StandardCharsets.UTF_8)
+		));
+
+		List<CDSCard> cards = service.call(cdsRequest);
+		assertEquals(1, cards.size());
+
+		CDSCard cdsCard = cards.get(0);
+		assertEquals("Contraindication of medication for patient allergy: \"Penicillin-containing product\" with allergen \"Penicillin-containing product\".", cdsCard.getSummary());
+		assertEquals(CDSIndicator.critical, cdsCard.getIndicator());
+		assertEquals("The use of Penicillin-containing product is contraindicated when the patient has an allergy to Penicillin-containing product. It is recommended to avoid prescribing any penicillin containing drug for this patient.", cdsCard.getDetail());
+		assertEquals("890458001", cdsCard.getReferenceMedications().get(0).getCoding().get(0).getCode());
+		assertEquals(null, cdsCard.getReferenceConditions());
+		assertEquals(CONTRAINDICATION_ALERT_TYPE, cdsCard.getAlertType());
+	}
+
+	@Test
+	public void shouldFallBackToRuleAllergenName_WhenAllergyCodingHasNoDisplay() throws IOException {
+		CDSTrigger allergyTrigger = new MedicationAllergyCDSTrigger(
+				"Penicillin-containing product",
+				Collections.singleton(new Coding("http://snomed.info/sct", "890458001", null)),
+				"Penicillin-containing product",
+				Collections.singleton(new Coding("http://snomed.info/sct", "890458001", null)),
+				new CDSCard(
+						"a99169a9-1092-4597-920a-03ccd7a8716c",
+						"Contraindication of medication for patient allergy: {{ActualMedication}} with allergen {{ActualAllergen}}.",
+						"The use of {{RuleMedication}} is contraindicated when the patient has an allergy to {{RuleAllergen}}.",
+						CDSIndicator.critical,
+						new CDSSource("CPIC"),
+						null,
+						null,
+						CONTRAINDICATION_ALERT_TYPE));
+		service.setMedicationAllergyTriggers(List.of(allergyTrigger));
+		String allergyBundleWithoutDisplay = StreamUtils.copyToString(getClass().getResourceAsStream("/medication-order-select/AllergyIntoleranceBundle.json"), StandardCharsets.UTF_8)
+				.replace("\"display\": \"Penicillin-containing product\"", "\"display\": null");
+
+		CDSRequest cdsRequest = new CDSRequest();
+		cdsRequest.setPrefetchStrings(Map.of(
+				"patient", StreamUtils.copyToString(getClass().getResourceAsStream("/medication-order-select/PatientResource.json"), StandardCharsets.UTF_8),
+				"conditions", "{\"resourceType\":\"Bundle\"}",
+				"draftMedicationRequests", StreamUtils.copyToString(getClass().getResourceAsStream("/medication-order-select/MedicationRequestBundleWithPenicillin.json"), StandardCharsets.UTF_8),
+				"allergies", allergyBundleWithoutDisplay
+		));
+
+		List<CDSCard> cards = service.call(cdsRequest);
+		assertEquals(1, cards.size());
+
+		CDSCard cdsCard = cards.get(0);
+		assertEquals("Contraindication of medication for patient allergy: \"Penicillin-containing product\" with allergen \"Penicillin-containing product\".", cdsCard.getSummary());
+	}
+
+	@Test
+	public void shouldFallBackToRuleMedicationName_WhenPrescribedMedicationCodingHasNoDisplay() throws IOException {
+		CDSTrigger allergyTrigger = new MedicationAllergyCDSTrigger(
+				"Penicillin-containing product",
+				Collections.singleton(new Coding("http://snomed.info/sct", "890458001", null)),
+				"Penicillin-containing product",
+				Collections.singleton(new Coding("http://snomed.info/sct", "890458001", null)),
+				new CDSCard(
+						"a99169a9-1092-4597-920a-03ccd7a8716c",
+						"Contraindication of medication for patient allergy: {{ActualMedication}} with allergen {{ActualAllergen}}.",
+						"The use of {{RuleMedication}} is contraindicated when the patient has an allergy to {{RuleAllergen}}.",
+						CDSIndicator.critical,
+						new CDSSource("CPIC"),
+						null,
+						null,
+						CONTRAINDICATION_ALERT_TYPE));
+		service.setMedicationAllergyTriggers(List.of(allergyTrigger));
+		String medicationBundleWithoutDisplay = StreamUtils.copyToString(getClass().getResourceAsStream("/medication-order-select/MedicationRequestBundleWithPenicillin.json"), StandardCharsets.UTF_8)
+				.replace("\"display\": \"Penicillin-containing product\"", "\"display\": null");
+
+		CDSRequest cdsRequest = new CDSRequest();
+		cdsRequest.setPrefetchStrings(Map.of(
+				"patient", StreamUtils.copyToString(getClass().getResourceAsStream("/medication-order-select/PatientResource.json"), StandardCharsets.UTF_8),
+				"conditions", "{\"resourceType\":\"Bundle\"}",
+				"draftMedicationRequests", medicationBundleWithoutDisplay,
+				"allergies", StreamUtils.copyToString(getClass().getResourceAsStream("/medication-order-select/AllergyIntoleranceBundle.json"), StandardCharsets.UTF_8)
+		));
+
+		List<CDSCard> cards = service.call(cdsRequest);
+		assertEquals(1, cards.size());
+
+		CDSCard cdsCard = cards.get(0);
+		assertEquals("Contraindication of medication for patient allergy: \"Penicillin-containing product\" with allergen \"Penicillin-containing product\".", cdsCard.getSummary());
+	}
+
+	@Test
+	public void shouldNotReturnAlert_WhenPatientAllergyIsNotCoveredByRules() throws IOException {
+		CDSTrigger allergyTrigger = new MedicationAllergyCDSTrigger(
+				"Penicillin-containing product",
+				Collections.singleton(new Coding("http://snomed.info/sct", "890458001", null)),
+				"Penicillin-containing product",
+				Collections.singleton(new Coding("http://snomed.info/sct", "890458001", null)),
+				new CDSCard(
+						"a99169a9-1092-4597-920a-03ccd7a8716c",
+						"Contraindication of medication for patient allergy: {{ActualMedication}} with allergen {{ActualAllergen}}.",
+						"The use of {{RuleMedication}} is contraindicated when the patient has an allergy to {{RuleAllergen}}.",
+						CDSIndicator.critical,
+						new CDSSource("CPIC"),
+						null,
+						null,
+						CONTRAINDICATION_ALERT_TYPE));
+		service.setMedicationAllergyTriggers(List.of(allergyTrigger));
+
+		CDSRequest cdsRequest = new CDSRequest();
+		cdsRequest.setPrefetchStrings(Map.of(
+				"patient", StreamUtils.copyToString(getClass().getResourceAsStream("/medication-order-select/PatientResource.json"), StandardCharsets.UTF_8),
+				"conditions", "{\"resourceType\":\"Bundle\"}",
+				"draftMedicationRequests", StreamUtils.copyToString(getClass().getResourceAsStream("/medication-order-select/MedicationRequestBundleWithPenicillin.json"), StandardCharsets.UTF_8),
+				"allergies", StreamUtils.copyToString(getClass().getResourceAsStream("/medication-order-select/AllergyIntoleranceBundleSulfonamide.json"), StandardCharsets.UTF_8)
+		));
+
+		List<CDSCard> cards = service.call(cdsRequest);
+		assertEquals(0, cards.size());
+	}
+
+	@Test
+	public void shouldNotReturnAlert_WhenPatientHasNoAllergies() throws IOException {
+		CDSTrigger allergyTrigger = new MedicationAllergyCDSTrigger(
+				"Penicillin-containing product",
+				Collections.singleton(new Coding("http://snomed.info/sct", "890458001", null)),
+				"Penicillin-containing product",
+				Collections.singleton(new Coding("http://snomed.info/sct", "890458001", null)),
+				new CDSCard(
+						"a99169a9-1092-4597-920a-03ccd7a8716c",
+						"Contraindication of medication for patient allergy: {{ActualMedication}} with allergen {{ActualAllergen}}.",
+						"The use of {{RuleMedication}} is contraindicated when the patient has an allergy to {{RuleAllergen}}.",
+						CDSIndicator.critical,
+						new CDSSource("CPIC"),
+						null,
+						null,
+						CONTRAINDICATION_ALERT_TYPE));
+		service.setMedicationAllergyTriggers(List.of(allergyTrigger));
+
+		CDSRequest cdsRequest = new CDSRequest();
+		cdsRequest.setPrefetchStrings(Map.of(
+				"patient", StreamUtils.copyToString(getClass().getResourceAsStream("/medication-order-select/PatientResource.json"), StandardCharsets.UTF_8),
+				"conditions", "{\"resourceType\":\"Bundle\"}",
+				"draftMedicationRequests", StreamUtils.copyToString(getClass().getResourceAsStream("/medication-order-select/MedicationRequestBundleWithPenicillin.json"), StandardCharsets.UTF_8),
+				"allergies", "{\"resourceType\":\"Bundle\"}"
+		));
+
+		List<CDSCard> cards = service.call(cdsRequest);
+		assertEquals(0, cards.size());
+	}
 
 	@Test
 	public void shouldReturnOverDoseWarningAlert_WhenPrescribedDailyDoseExceedsMaximumThresholdFactor() throws IOException {

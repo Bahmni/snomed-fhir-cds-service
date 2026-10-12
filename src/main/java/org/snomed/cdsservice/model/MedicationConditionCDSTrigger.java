@@ -33,9 +33,9 @@ public class MedicationConditionCDSTrigger extends CDSTrigger {
         }
 
         text = text.replace("{{RuleMedication}}", getMedicationLabel());
-        text = text.replace("{{ActualMedication}}", toHumanReadable(medicationIntersection));
+        text = text.replace("{{ActualMedication}}", toHumanReadable(medicationIntersection, getMedicationLabel()));
         text = text.replace("{{RuleCondition}}", getConditionLabel());
-        text = text.replace("{{ActualCondition}}", toHumanReadable(conditionIntersection));
+        text = text.replace("{{ActualCondition}}", toHumanReadable(conditionIntersection, getConditionLabel()));
 
         return text;
     }

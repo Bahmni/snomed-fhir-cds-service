@@ -5,6 +5,8 @@ import ca.uhn.fhir.parser.IParser;
 import jakarta.annotation.PostConstruct;
 import org.hl7.fhir.r4.model.*;
 import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.snomed.cdsservice.model.CDSCard;
 import org.snomed.cdsservice.model.CDSCoding;
 import org.snomed.cdsservice.model.CDSReference;
@@ -25,6 +27,8 @@ import java.util.stream.Stream;
 @Service
 public class MedicationOrderSelectCDSService extends CDSService {
 
+	private final Logger logger = LoggerFactory.getLogger(getClass());
+
 	@Autowired
 	private FhirContext fhirContext;
 
@@ -35,17 +39,23 @@ public class MedicationOrderSelectCDSService extends CDSService {
 	private MedicationCombinationRuleLoaderService medicationRuleLoaderService;
 
 	@Autowired
+	private MedicationAllergyRuleLoaderService medicationAllergyRuleLoaderService;
+
+	@Autowired
 	private SnomedMedicationDefinedDailyDoseService definedDailyDoseService;
 
 	private List<CDSTrigger> medicationOrderSelectTriggers;
 
 	private List<CDSTrigger> drugDrugInteractionTriggers;
 
+	private List<CDSTrigger> medicationAllergyTriggers;
+
 	public MedicationOrderSelectCDSService() {
 		super("medication-order-select");
 		setPrefetch(Map.of(
 				"conditions", "Condition?patient={{context.patientId}}&category=problem-list-item&status=active",
-				"draftMedicationRequests", "MedicationRequest?patient={{context.patientId}}&status=draft"
+				"draftMedicationRequests", "MedicationRequest?patient={{context.patientId}}&status=draft",
+				"allergies", "AllergyIntolerance?patient={{context.patientId}}"
 		));
 	}
 
@@ -53,6 +63,7 @@ public class MedicationOrderSelectCDSService extends CDSService {
 	public void init() throws ServiceException {
 		medicationOrderSelectTriggers = ruleLoaderService.loadTriggers();
 		drugDrugInteractionTriggers = medicationRuleLoaderService.loadTriggers();
+		medicationAllergyTriggers = medicationAllergyRuleLoaderService.loadTriggers();
 	}
 
 	@Override
@@ -68,6 +79,7 @@ public class MedicationOrderSelectCDSService extends CDSService {
 
 		Set<Coding> activeDiagnosesCodings = getCodings(activeDiagnoses.stream().map(Condition::getCode));
 		Set<Coding> draftMedicationOrderCodings = getCodings(medicationRequests.stream().map(MedicationRequest::getMedicationCodeableConcept));
+		Set<Coding> allergyCodings = getPrefetchAllergyCodings(prefetch, parser);
 
 		List<CDSCard> cards = new ArrayList<>();
 		for (CDSTrigger trigger : medicationOrderSelectTriggers) {
@@ -78,6 +90,14 @@ public class MedicationOrderSelectCDSService extends CDSService {
 				cards.add(card);
 			}
 		}
+
+		medicationAllergyTriggers.forEach(trigger -> {
+			CDSCard card = trigger.createRelevantCard(allergyCodings, draftMedicationOrderCodings);
+			if (card != null) {
+				addCodesFromOtherCodingSystemsForDraftMedications(card.getReferenceMedications(), medicationRequests);
+				cards.add(card);
+			}
+		});
 
 		drugDrugInteractionTriggers.forEach(trigger -> {
 			CDSCard card = trigger.createRelevantCard(draftMedicationOrderCodings, draftMedicationOrderCodings);
@@ -154,7 +174,24 @@ public class MedicationOrderSelectCDSService extends CDSService {
 		return resources;
 	}
 
+	private Set<Coding> getPrefetchAllergyCodings(Map<String, String> prefetch, IParser parser) {
+		if (prefetch == null || prefetch.get("allergies") == null) {
+			return Collections.emptySet();
+		}
+		try {
+			List<AllergyIntolerance> allergies = getPrefetchResourcesFromBundle(prefetch, "allergies", AllergyIntolerance.class, parser);
+			return getCodings(allergies.stream().map(AllergyIntolerance::getCode));
+		} catch (Exception e) {
+			logger.warn("Could not parse allergies prefetch, proceeding without allergy rules.", e);
+			return Collections.emptySet();
+		}
+	}
+
 	public void setMedicationOrderSelectTriggers(List<CDSTrigger> medicationOrderSelectTriggers) {
 		this.medicationOrderSelectTriggers = medicationOrderSelectTriggers;
+	}
+
+	public void setMedicationAllergyTriggers(List<CDSTrigger> medicationAllergyTriggers) {
+		this.medicationAllergyTriggers = medicationAllergyTriggers;
 	}
 }

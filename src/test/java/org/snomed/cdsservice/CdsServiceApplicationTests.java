@@ -1,6 +1,7 @@
 package org.snomed.cdsservice;
 
 import org.junit.jupiter.api.Test;
+import org.snomed.cdsservice.service.medication.MedicationAllergyRuleLoaderService;
 import org.snomed.cdsservice.service.medication.MedicationCombinationRuleLoaderService;
 import org.snomed.cdsservice.service.medication.MedicationConditionRuleLoaderService;
 import org.snomed.cdsservice.service.medication.dose.SnomedMedicationDefinedDailyDoseService;
@@ -15,6 +16,9 @@ class CdsServiceApplicationTests {
 
 	@MockBean
 	private MedicationCombinationRuleLoaderService medicationRuleLoaderService;
+
+	@MockBean
+	private MedicationAllergyRuleLoaderService medicationAllergyRuleLoaderService;
 
 	@MockBean
 	private SnomedMedicationDefinedDailyDoseService definedDailyDoseService;

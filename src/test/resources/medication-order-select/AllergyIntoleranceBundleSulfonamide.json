@@ -1,0 +1,43 @@
+{
+  "resourceType": "Bundle",
+  "id": "7d1c8ae2-35e0-4c7a-9f9d-0a63d4b7d9f3",
+  "entry": [
+    {
+      "fullUrl": "https://r4.smarthealthit.org/AllergyIntolerance/0ec3b4f4-d33a-4d4e-9b2f-56b1c3a6f2fa",
+      "resource": {
+        "resourceType": "AllergyIntolerance",
+        "id": "0ec3b4f4-d33a-4d4e-9b2f-56b1c3a6f2fa",
+        "clinicalStatus": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/allergyintolerance-clinical",
+              "code": "active",
+              "display": "Active"
+            }
+          ]
+        },
+        "code": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "91939003",
+              "display": "Allergy to sulfonamide"
+            }
+          ],
+          "text": "Allergy to sulfonamide"
+        },
+        "patient": {
+          "reference": "Patient/155d3d80-f3f0-4b39-9207-0d122cf94a11"
+        },
+        "recordedDate": "2021-01-15T04:59:42+00:00"
+      },
+      "search": {
+        "mode": "match"
+      },
+      "response": {
+        "status": "200 OK",
+        "etag": "W/\"1\""
+      }
+    }
+  ]
+}
